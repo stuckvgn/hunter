@@ -194,6 +194,70 @@ def phase_crawl(handle: str, concurrency: int, rate: int) -> None:
     tracker_advance(handle, "crawl", str(out_file))
 
 
+def phase_code_recon(handle: str, gh_org: str | None) -> None:
+    """GitHub code recon — passive relative to the target. Needs GITHUB_TOKEN.
+
+    Two inputs matter:
+      - `gh_org` (optional): the target's GitHub organization handle, if known.
+        Enables trufflehog org-wide secret scanning. If omitted, only
+        github-subdomains runs (queries GitHub code search for the scope's
+        root domains).
+    """
+    wd = workdir(handle)
+    code_dir = wd / "code_recon"
+    code_dir.mkdir(exist_ok=True)
+
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        # Try gh CLI's cached token as a fallback.
+        try:
+            r = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, check=False)
+            if r.returncode == 0 and r.stdout.strip():
+                token = r.stdout.strip()
+                os.environ["GITHUB_TOKEN"] = token
+        except FileNotFoundError:
+            pass
+    if not token:
+        sys.exit("GITHUB_TOKEN not set and `gh auth token` unavailable — GitHub API is rate-limited to 60 req/hr unauthenticated; set a token before running code_recon")
+
+    # 1. github-subdomains on each wildcard root
+    wildcards = wd / "targets_wildcards.txt"
+    if wildcards.exists() and wildcards.read_text().strip():
+        all_found: set[str] = set()
+        for domain in [l.strip() for l in wildcards.read_text().splitlines() if l.strip()]:
+            log(handle, f"github-subdomains -d {domain}")
+            out_file = code_dir / f"gh_subs_{domain.replace('/', '_')}.txt"
+            r = subprocess.run(
+                ["github-subdomains", "-d", domain, "-o", str(out_file), "-t", token],
+                capture_output=True, text=True, check=False, timeout=300,
+            )
+            if out_file.exists():
+                for line in out_file.read_text().splitlines():
+                    line = line.strip()
+                    if line:
+                        all_found.add(line)
+        combined = code_dir / "gh_subs_all.txt"
+        combined.write_text("\n".join(sorted(all_found)) + "\n")
+        log(handle, f"  github-subdomains found {len(all_found)} unique hosts → {combined}")
+    else:
+        log(handle, "  no wildcards in scope — skipping github-subdomains")
+
+    # 2. trufflehog org-wide secret scan — optional, only if gh_org provided
+    if gh_org:
+        out_jsonl = code_dir / f"trufflehog_{gh_org}.jsonl"
+        cmd = ["trufflehog", "github", f"--org={gh_org}", "--json", "--only-verified", "--no-update"]
+        log(handle, f"running: {' '.join(cmd)} (org scan — may take several minutes)")
+        with out_jsonl.open("w") as out:
+            subprocess.run(cmd, stdout=out, stderr=subprocess.DEVNULL, check=False, timeout=1800, env={**os.environ, "GITHUB_TOKEN": token})
+        count = sum(1 for _ in out_jsonl.open()) if out_jsonl.exists() else 0
+        log(handle, f"  trufflehog found {count} verified secrets in github.com/{gh_org} → {out_jsonl}")
+    else:
+        log(handle, "  no --gh-org specified — skipping trufflehog org scan")
+        log(handle, "  to enable: rerun with --gh-org <organization> once you've identified the target's GitHub org")
+
+    tracker_advance(handle, "code_recon", str(code_dir))
+
+
 def phase_archive(handle: str, concurrency: int) -> None:
     """gau — passive: queries Wayback/CommonCrawl/OTX/URLScan for historical URLs.
     Strictly a read against third-party archives, no traffic to the target.
@@ -450,7 +514,7 @@ def main() -> None:
         description="Per-target recon harness — each phase is an explicit step.",
     )
     ap.add_argument("handle", help="program handle (e.g. shopify, kruidvat)")
-    ap.add_argument("phase", choices=["scope", "enum", "archive", "live", "crawl", "js_mine", "param_mine", "scan", "status", "clear"])
+    ap.add_argument("phase", choices=["scope", "enum", "archive", "live", "crawl", "js_mine", "param_mine", "scan", "code_recon", "status", "clear"])
     ap.add_argument("--platform", choices=("hackerone", "bugcrowd", "intigriti", "yeswehack"),
                     help="disambiguate if handle collides")
     ap.add_argument("-c", "--concurrency", type=int, default=25, help="worker threads (active phases)")
@@ -458,6 +522,7 @@ def main() -> None:
     ap.add_argument("--severity", default="low,medium,high,critical",
                     help="nuclei severities, comma-separated")
     ap.add_argument("--sample", type=int, default=50, help="param-mine: cap number of unique endpoints probed")
+    ap.add_argument("--gh-org", dest="gh_org", help="code_recon: target's GitHub organization handle (enables trufflehog org scan)")
     args = ap.parse_args()
 
     if args.phase in ACTIVE_PHASES:
@@ -468,6 +533,7 @@ def main() -> None:
         "scope":      lambda: phase_scope(args.handle, args.platform),
         "enum":       lambda: phase_enum(args.handle),
         "archive":    lambda: phase_archive(args.handle, args.concurrency),
+        "code_recon": lambda: phase_code_recon(args.handle, args.gh_org),
         "live":       lambda: phase_live(args.handle, args.concurrency, args.rl),
         "crawl":      lambda: phase_crawl(args.handle, args.concurrency, args.rl),
         "js_mine":    lambda: phase_js_mine(args.handle, args.concurrency),

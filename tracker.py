@@ -38,8 +38,8 @@ BOUNTIES_CLI = HERE / "bounties.py"
 sys.path.insert(0, str(HERE))  # allow importing bounties / triage as modules
 
 # Phase ordering — advance() fills them in sequence.
-PHASES = ["scope", "policy", "enum", "archive", "live", "crawl", "js_mine", "param_mine", "scan", "reported"]
-PASSIVE_PHASES = {"scope", "policy", "enum", "archive"}
+PHASES = ["scope", "policy", "prior_art", "code_recon", "enum", "archive", "live", "crawl", "js_mine", "param_mine", "scan", "reported"]
+PASSIVE_PHASES = {"scope", "policy", "prior_art", "code_recon", "enum", "archive"}
 ACTIVE_PHASES = {"live", "crawl", "js_mine", "param_mine", "scan"}
 
 

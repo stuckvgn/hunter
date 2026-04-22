@@ -1,3 +1,8 @@
 __pycache__/
 *.pyc
 .venv/
+
+# Derived state — regenerate with `tracker.py discover` / `tracker.py triage`.
+# Per-handle state/<handle>.json IS tracked (durable work state).
+state/_catalog.json
+state/_triage.json

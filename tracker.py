@@ -31,7 +31,11 @@ from typing import Any
 
 HERE = Path(__file__).parent
 STATE_DIR = HERE / "state"
+CATALOG_PATH = STATE_DIR / "_catalog.json"
+TRIAGE_PATH = STATE_DIR / "_triage.json"
 BOUNTIES_CLI = HERE / "bounties.py"
+
+sys.path.insert(0, str(HERE))  # allow importing bounties / triage as modules
 
 # Phase ordering — advance() fills them in sequence.
 PHASES = ["scope", "policy", "enum", "live", "crawl", "scan", "reported"]
@@ -239,6 +243,81 @@ def cmd_finding(args) -> None:
                 print(f"      {f['url']}")
 
 
+def cmd_discover(args) -> None:
+    """Refresh program data from arkadiyt/bounty-targets-data and snapshot it to state/_catalog.json."""
+    import bounties
+    STATE_DIR.mkdir(exist_ok=True)
+    bounties.ensure_cache(force=args.refresh)
+    programs = bounties.load_all()
+    by_plat: dict[str, int] = {}
+    paid = 0
+    for p in programs:
+        by_plat[p["platform"]] = by_plat.get(p["platform"], 0) + 1
+        if p["offers_bounty"]:
+            paid += 1
+    catalog = {
+        "generated_at": _now(),
+        "source": "arkadiyt/bounty-targets-data",
+        "total": len(programs),
+        "paid": paid,
+        "by_platform": by_plat,
+        "programs": programs,
+    }
+    CATALOG_PATH.write_text(json.dumps(catalog, indent=2, default=str) + "\n")
+    print(f"catalog → {CATALOG_PATH}  ({CATALOG_PATH.stat().st_size:,} bytes)")
+    print(f"  {catalog['total']} programs, {paid} paid")
+    for plat, n in sorted(by_plat.items(), key=lambda x: -x[1]):
+        print(f"    {plat:10} {n}")
+
+
+def cmd_triage(args) -> None:
+    """Score the current catalog and snapshot the ranking to state/_triage.json."""
+    if not CATALOG_PATH.exists():
+        sys.exit(f"no catalog — run `tracker.py discover` first")
+    import triage as triage_mod
+    catalog = json.loads(CATALOG_PATH.read_text())
+    programs = catalog["programs"]
+    scored = [triage_mod.score(p) for p in programs]
+    paid = [s for s in scored if s.prog["offers_bounty"]]
+    paid.sort(key=lambda s: -s.combined)
+
+    def entry(s) -> dict:
+        p = s.prog
+        return {
+            "platform": p["platform"],
+            "handle": p["handle"],
+            "name": p["name"],
+            "max_bounty": p.get("max_bounty"),
+            "offers_bounty": p["offers_bounty"],
+            "combined": round(s.combined, 3),
+            "autonomy": round(s.autonomy, 3),
+            "payout_score": round(s.payout_score, 3),
+            "breadth_score": round(s.breadth_score, 3),
+            "competition_proxy": round(s.competition_proxy, 3),
+            "has_wildcard": s.has_wildcard,
+            "auto_count": s.auto_count,
+            "mobile_count": s.mobile_count,
+            "source_count": s.source_count,
+            "hardware_count": s.hardware_count,
+            "total_scope": s.total_count,
+        }
+
+    ranking = {
+        "generated_at": _now(),
+        "catalog_generated_at": catalog["generated_at"],
+        "total_scored": len(scored),
+        "paid_count": len(paid),
+        "ranked": [entry(s) for s in paid],
+    }
+    TRIAGE_PATH.write_text(json.dumps(ranking, indent=2, default=str) + "\n")
+    print(f"triage → {TRIAGE_PATH}  ({TRIAGE_PATH.stat().st_size:,} bytes)")
+    print(f"  {len(paid)} paid programs scored")
+    print(f"  top 5:")
+    for r in ranking["ranked"][:5]:
+        payout = f"${r['max_bounty']:,}" if r["max_bounty"] else "paid ($?)"
+        print(f"    {r['combined']:.2f}  {r['platform']:10} {r['handle']:30}  {payout:>12}  auto-fit={r['autonomy']:.2f}")
+
+
 def cmd_next(args) -> None:
     """Suggest the next action across all tracked programs, in priority order."""
     states = all_states()
@@ -297,6 +376,13 @@ def cmd_next(args) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(prog="tracker", description="Per-program bounty state tracker.")
     sub = ap.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("discover", help="refresh program data and snapshot catalog to state/_catalog.json")
+    s.add_argument("--refresh", action="store_true", help="force re-download even if cache is fresh")
+    s.set_defaults(func=cmd_discover)
+
+    s = sub.add_parser("triage", help="score catalog and write ranking to state/_triage.json")
+    s.set_defaults(func=cmd_triage)
 
     s = sub.add_parser("add", help="start tracking a program")
     s.add_argument("handle")

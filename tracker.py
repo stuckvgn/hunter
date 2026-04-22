@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -324,6 +325,131 @@ def cmd_triage(args) -> None:
         print(f"    {r['combined']:.2f}  {r['platform']:10} {r['handle']:30}  {payout:>12}  auto-fit={r['autonomy']:.2f}")
 
 
+def _h1_reports_csv() -> Path:
+    """Location of the offline HackerOne disclosed-reports corpus.
+
+    reddelexc/hackerone-reports bundles ~14.5k disclosed reports across 427+
+    programs as a single CSV. We clone it on first use; thereafter it's a
+    local grep. Override with H1_REPORTS_DIR if you want to manage it yourself.
+    """
+    path = Path(os.environ.get("H1_REPORTS_DIR", Path.home() / ".local/share/hackerone-reports"))
+    return path / "data.csv"
+
+
+def _fetch_h1_prior_art(handle: str, display_name: str) -> list[dict]:
+    """Grep the offline H1 corpus for a program. Case-insensitive match against
+    display name first (columns use display names, not handles)."""
+    import csv as _csv
+    corpus = _h1_reports_csv()
+    if not corpus.exists():
+        # First-run clone.
+        target = corpus.parent
+        print(f"cloning reddelexc/hackerone-reports → {target} (one-time, ~6 MB)...", file=sys.stderr)
+        r = subprocess.run(
+            ["git", "clone", "--depth", "1",
+             "https://github.com/reddelexc/hackerone-reports.git", str(target)],
+            capture_output=True, text=True, check=False,
+        )
+        if r.returncode != 0:
+            print(f"clone failed: {r.stderr}", file=sys.stderr)
+            return []
+
+    needles = {handle.lower(), display_name.lower()}
+    out: list[dict] = []
+    with corpus.open() as fh:
+        reader = _csv.DictReader(fh)
+        for row in reader:
+            prog = (row.get("program") or "").lower()
+            if any(n and n in prog for n in needles):
+                out.append({
+                    "program": row.get("program"),
+                    "title": row.get("title"),
+                    "link": row.get("link"),
+                    "upvotes": int(row.get("upvotes") or 0),
+                    "bounty": float(row.get("bounty") or 0),
+                    "vuln_type": row.get("vuln_type") or "",
+                })
+    return out
+
+
+def _prior_art_summary(reports: list[dict]) -> dict:
+    """Roll up a list of reports into medians + class distribution."""
+    if not reports:
+        return {}
+    bounties = [r["bounty"] for r in reports if r["bounty"] > 0]
+    bounties.sort()
+    median = bounties[len(bounties) // 2] if bounties else 0
+    by_class: dict[str, int] = {}
+    for r in reports:
+        c = r["vuln_type"] or "(unclassified)"
+        by_class[c] = by_class.get(c, 0) + 1
+    return {
+        "total_reports": len(reports),
+        "reports_with_bounty": len(bounties),
+        "observed_median_payout": median,
+        "max_disclosed_bounty": max(bounties) if bounties else 0,
+        "by_vuln_class": dict(sorted(by_class.items(), key=lambda x: -x[1])),
+    }
+
+
+def cmd_prior_art(args) -> None:
+    """Pull a program's disclosure history and write structured notes to state."""
+    state = load(args.handle)
+    if not state:
+        sys.exit(f"not tracking {args.handle} — run `tracker.py add {args.handle}` first")
+    platform = state["platform"]
+
+    if platform == "hackerone":
+        reports = _fetch_h1_prior_art(state["handle"], state["name"])
+        summary = _prior_art_summary(reports)
+        state.setdefault("prior_art", {})
+        state["prior_art"] = {
+            "platform": "hackerone",
+            "source": "reddelexc/hackerone-reports",
+            "fetched_at": _now(),
+            "summary": summary,
+            "reports": reports[:50],  # cap stored reports; full list remains in the corpus
+        }
+        state["phases"]["prior_art"] = {"at": _now(), "output": None}
+        save(state)
+        if not reports:
+            print(f"{args.handle}: no disclosed H1 reports found in offline corpus")
+            print(f"  (corpus covers ~427 programs; the target may not be in it)")
+            return
+        print(f"{args.handle}: {summary['total_reports']} disclosed reports")
+        if summary["reports_with_bounty"]:
+            print(f"  observed median payout: ${summary['observed_median_payout']:.0f}  "
+                  f"(max disclosed: ${summary['max_disclosed_bounty']:.0f})")
+        print(f"  top vuln classes:")
+        for cls, n in list(summary["by_vuln_class"].items())[:8]:
+            print(f"    {n:>3}  {cls}")
+        print()
+        print(f"  top 5 by upvotes:")
+        for r in sorted(reports, key=lambda r: -r["upvotes"])[:5]:
+            bounty = f"${r['bounty']:.0f}" if r["bounty"] else "no bounty"
+            print(f"    ({r['upvotes']}↑, {bounty})  {r['title'][:80]}")
+    else:
+        # Non-H1 platforms: disclosure pages are web-only. We record the URL
+        # and stop — the operator (me/Claude) WebFetches from here.
+        disclosure_url_hint = {
+            "bugcrowd":  f"https://bugcrowd.com/engagements/{state['handle']}/disclosures",
+            "intigriti": f"{state['program_url']} (Public disclosure tab, if any)",
+            "yeswehack": f"{state['program_url']}/changelog",
+        }.get(platform, state["program_url"])
+        state["prior_art"] = {
+            "platform": platform,
+            "source": "webfetch-required",
+            "fetched_at": _now(),
+            "disclosure_url": disclosure_url_hint,
+            "note": f"Offline corpus only covers HackerOne. WebFetch {disclosure_url_hint} and record findings via `tracker.py note`.",
+        }
+        state["phases"]["prior_art"] = {"at": _now(), "output": None}
+        save(state)
+        print(f"{args.handle}: platform is {platform} — offline corpus doesn't cover it.")
+        print(f"  Fetch {disclosure_url_hint} manually (WebFetch) and add notes:")
+        print(f"  tracker.py note {args.handle} 'prior-art: ...'")
+
+
 def cmd_next(args) -> None:
     """Suggest the next action across all tracked programs, in priority order."""
     states = all_states()
@@ -428,6 +554,10 @@ def main() -> None:
     s.add_argument("--url")
     s.add_argument("--template", help="nuclei template ID, if relevant")
     s.set_defaults(func=cmd_finding)
+
+    s = sub.add_parser("prior-art", help="pull disclosure history for a tracked program (H1: offline corpus; others: URL hint)")
+    s.add_argument("handle")
+    s.set_defaults(func=cmd_prior_art)
 
     s = sub.add_parser("next", help="suggest next action across all tracked programs")
     s.set_defaults(func=cmd_next)

@@ -21,21 +21,23 @@ Jason Haddix and zseano frame prior-art review as "reading the changelog before 
 | YesWeHack | `https://yeswehack.com/programs/<id>/changelog` | Also sparse |
 
 Also useful (cross-program):
-- [reddelexc/hackerone-reports](https://github.com/reddelexc/hackerone-reports) — scraped corpus of all HackerOne disclosed reports, searchable offline
+- [reddelexc/hackerone-reports](https://github.com/reddelexc/hackerone-reports) — scraped corpus of all HackerOne disclosed reports, searchable offline. Auto-cloned by `tracker.py prior-art` on first use to `~/.local/share/hackerone-reports/`.
 - [Bugcrowd Crowdstream](https://bugcrowd.com/crowdstream) — recent disclosures across all Bugcrowd programs
 
 ## Pre-target check (do before investing time)
 
 For a new target:
 
-1. **WebFetch the platform's disclosure URL** for the program handle. Prompt: "List every publicly disclosed vulnerability for this program: title, severity, vuln class (XSS/SSRF/IDOR/etc.), bounty paid if stated, date."
-2. **Summarize into tracker as notes**:
-   ```bash
-   tracker.py note <handle> "disclosure: 12 reports, mostly XSS + IDOR; observed median bounty $2500 (stated max: $10000); no SSRF/RCE/auth-bypass disclosed → those classes likely unexplored"
-   ```
+1. **Run `tracker.py prior-art <handle>`**. For HackerOne programs this queries the offline corpus and returns:
+   - `total_reports` (disclosed count)
+   - `observed_median_payout` and `max_disclosed_bounty`
+   - `by_vuln_class` distribution (where the team has systematic defenses vs. blind spots)
+   - top 5 reports by upvote (high-signal disclosures to read)
+   - Full records land in `state/<handle>.json` under `prior_art.reports` (capped at 50).
+2. For **non-HackerOne** platforms the corpus doesn't cover them — the CLI falls back to printing the disclosure URL and you (Claude) WebFetch + summarize, then record via `tracker.py note <handle> "..."`.
 3. **Calibrate expectation**: observed median payout is a better signal than stated max. If median is $500 on a $10k-max program, actual payouts run low.
-4. **Flag dead zones**: if 80% of disclosed reports are the same class, assume the team has systematic defenses there. Skip that class.
-5. **Flag live zones**: vuln classes conspicuously absent from disclosure are either (a) well-defended, or (b) unexplored. Investigate.
+4. **Flag dead zones**: if one class dominates `by_vuln_class`, the team has systematic defenses there. Deprioritize that class.
+5. **Flag live zones**: classes conspicuously absent from `by_vuln_class` are either well-defended or unexplored. Investigate.
 
 ## Pre-submit check (do before filing any specific finding)
 

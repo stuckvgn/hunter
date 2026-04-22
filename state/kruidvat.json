@@ -16,12 +16,23 @@
     "live": null,
     "crawl": null,
     "scan": null,
-    "reported": null
+    "reported": null,
+    "prior_art": {
+      "at": "2026-04-22T15:54:16",
+      "output": null
+    }
   },
   "automation_allowed": null,
   "policy_notes": "",
   "findings": [],
   "notes": [],
   "created_at": "2026-04-22T15:17:49",
-  "updated_at": "2026-04-22T15:17:51"
+  "updated_at": "2026-04-22T15:54:16",
+  "prior_art": {
+    "platform": "intigriti",
+    "source": "webfetch-required",
+    "fetched_at": "2026-04-22T15:54:16",
+    "disclosure_url": "https://www.intigriti.com/programs/aswatson/kruidvat/detail (Public disclosure tab, if any)",
+    "note": "Offline corpus only covers HackerOne. WebFetch https://www.intigriti.com/programs/aswatson/kruidvat/detail (Public disclosure tab, if any) and record findings via `tracker.py note`."
+  }
 }

@@ -20,14 +20,16 @@ Top bug-bounty hunters rank JS mining as the single highest-ROI phase after live
 
 Output: `~/.cache/hunt/<handle>/js_findings.jsonl` (one JSON record per match).
 
-## Caveats — I'm using regex, not AST parsing
+## Extractor: jsluice (AST) by default, regex fallback
 
-The BishopFox `jsluice` tool does this with tree-sitter AST parsing, which catches:
+`hunt.py js_mine` uses `jsluice` (AST-based, tree-sitter) when it's on PATH. This catches:
 - Concatenated strings (`"https://" + host + "/api"`)
 - Base64-encoded constants
 - Deeply obfuscated webpack bundles
 
-My regex miner misses those. For high-value targets with heavily minified JS, consider installing jsluice once a C toolchain is available (needs `sudo apt install build-essential` then `go install github.com/BishopFox/jsluice/cmd/jsluice@latest`). Until then, regex covers unminified customer-facing SPAs well.
+Falls back to the pure-regex miner when jsluice isn't available. Regex covers unminified customer-facing SPAs reasonably well but misses the concatenation patterns.
+
+**Current install:** jsluice is built via `zig cc` (standalone userspace C compiler), no `sudo apt install` needed. See repo README for the exact build flow if it needs reinstalling.
 
 ## Triage: what's signal vs noise
 

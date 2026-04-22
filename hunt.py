@@ -318,14 +318,23 @@ _JS_URL_RE  = re.compile(r'https?://[^\s\'"<>`]+', re.I)
 _JS_PATH_RE = re.compile(r'[\'"](/(?:api|v\d+|internal|admin|debug|graphql|oauth|auth|rest)/[^\'"<>\s`]*)[\'"]', re.I)
 
 
+def _have(tool: str) -> bool:
+    """Best-effort PATH check for an external tool."""
+    from shutil import which
+    return which(tool) is not None
+
+
 def phase_js_mine(handle: str, concurrency: int) -> None:
-    """Extract JS URLs from live corpus, fetch each, regex-scan for secrets + API paths.
+    """Extract JS URLs from live corpus, fetch each, scan for secrets + API paths.
+
+    Prefers `jsluice` (AST-based, catches concatenated strings, webpack bundles);
+    falls back to regex miner if jsluice isn't on PATH.
+
     ACTIVE: GETs each JS file from the target.
     """
     wd = workdir(handle)
     live = wd / "live_urls.txt"
     if not live.exists():
-        # Derive from live.jsonl if it exists
         live_jsonl = wd / "live.jsonl"
         if live_jsonl.exists():
             with live_jsonl.open() as fh, live.open("w") as out:
@@ -351,13 +360,18 @@ def phase_js_mine(handle: str, concurrency: int) -> None:
         tracker_advance(handle, "js_mine", str(js_urls_file))
         return
 
-    # Fetch each JS file and regex-scan. Cap at the first 200 to keep a single
-    # run bounded; if more exist, log a warning.
-    import urllib.request
-    out_file = wd / "js_findings.jsonl"
     capped = js_urls[:200]
     if len(js_urls) > 200:
         log(handle, f"  capping JS fetch at 200 (have {len(js_urls)})")
+
+    import urllib.request
+    out_file = wd / "js_findings.jsonl"
+    use_jsluice = _have("jsluice")
+    log(handle, f"  extractor: {'jsluice (AST)' if use_jsluice else 'regex fallback'}")
+
+    # Stage JS files locally so jsluice (which takes files, not URLs) can read them.
+    js_dir = wd / "js_fetched"
+    js_dir.mkdir(exist_ok=True)
 
     findings = 0
     with out_file.open("w") as out:
@@ -366,22 +380,67 @@ def phase_js_mine(handle: str, concurrency: int) -> None:
                 req = urllib.request.Request(u, headers={"User-Agent": "hunter-js-miner"})
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     body = resp.read().decode("utf-8", errors="ignore")
-            except Exception as e:
+            except Exception:
                 continue
 
-            for kind, pat in _JS_SECRET_PATTERNS.items():
-                for m in re.finditer(pat, body):
+            if use_jsluice:
+                # Save then scan via jsluice.
+                safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", u)[:180] + ".js"
+                js_path = js_dir / safe_name
+                js_path.write_text(body)
+                for mode in ("secrets", "urls"):
+                    r = subprocess.run(
+                        ["jsluice", mode, str(js_path)],
+                        capture_output=True, text=True, check=False, timeout=30,
+                    )
+                    for line in r.stdout.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            rec = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if mode == "secrets":
+                            out.write(json.dumps({
+                                "type": "secret",
+                                "kind": rec.get("kind"),
+                                "severity": rec.get("severity"),
+                                "data": rec.get("data"),
+                                "js_url": u,
+                                "source": "jsluice",
+                            }) + "\n")
+                            findings += 1
+                        else:  # urls
+                            out.write(json.dumps({
+                                "type": "url",
+                                "url": rec.get("url"),
+                                "method": rec.get("method") or "",
+                                "query_params": rec.get("queryParams") or [],
+                                "body_params": rec.get("bodyParams") or [],
+                                "url_type": rec.get("type"),
+                                "js_url": u,
+                                "source": "jsluice",
+                            }) + "\n")
+            else:
+                # Regex fallback — covers ~80% of jsluice's value on unminified JS.
+                for kind, pat in _JS_SECRET_PATTERNS.items():
+                    for m in re.finditer(pat, body):
+                        out.write(json.dumps({
+                            "type": "secret", "kind": kind, "js_url": u,
+                            "match": m.group(0)[:300], "source": "regex",
+                        }) + "\n")
+                        findings += 1
+                for m in _JS_URL_RE.finditer(body):
                     out.write(json.dumps({
-                        "type": "secret",
-                        "kind": kind,
-                        "js_url": u,
-                        "match": m.group(0)[:300],
+                        "type": "url", "url": m.group(0)[:500],
+                        "js_url": u, "source": "regex",
                     }) + "\n")
-                    findings += 1
-            for m in _JS_URL_RE.finditer(body):
-                out.write(json.dumps({"type": "absolute_url", "js_url": u, "url": m.group(0)[:500]}) + "\n")
-            for m in _JS_PATH_RE.finditer(body):
-                out.write(json.dumps({"type": "api_path", "js_url": u, "path": m.group(1)[:500]}) + "\n")
+                for m in _JS_PATH_RE.finditer(body):
+                    out.write(json.dumps({
+                        "type": "api_path", "path": m.group(1)[:500],
+                        "js_url": u, "source": "regex",
+                    }) + "\n")
 
     log(handle, f"js_mine complete: {findings} secret-like hits in {len(capped)} JS files → {out_file}")
     tracker_advance(handle, "js_mine", str(out_file))

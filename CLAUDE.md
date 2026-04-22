@@ -15,7 +15,11 @@ This repo is for bug-bounty work I (Claude) drive directly. Sam supervises, revi
 
 ## Tool inventory
 
-On `~/.local/bin/`: `subfinder`, `httpx`, `dnsx`, `katana`, `nuclei`, `ffuf`, plus (when Move 2 installed) `gau`, `jsluice`, `subjs`, `gf`, `arjun`, and (Move 3) `trufflehog`, `github-subdomains`. SecLists at `~/.local/share/SecLists`.
+On `~/.local/bin/`: `subfinder`, `httpx`, `dnsx`, `katana`, `nuclei`, `ffuf`, `gau`, `jsluice`, `subjs`, `gf`, `arjun`, `trufflehog`, `github-subdomains`, `sqlmap` (via git clone), plus `uv`, `desloppify`, `ruff`.
+
+Toolchains: `go` at `~/.local/go`, `zig` at `~/.local/share/zig` (also wrapped as `gcc`/`cc` for CGO builds — this is how `jsluice` compiles without system gcc).
+
+Data: SecLists at `~/.local/share/SecLists` (~2.5 GB), hackerone-reports at `~/.local/share/hackerone-reports` (offline disclosure corpus — 14.5k reports across 427 H1 programs), Gf-Patterns at `~/.gf/`.
 
 System: `curl`, `wget`, `jq`, `git`, `gh` (authed as `stuckvgn`).
 
@@ -30,6 +34,10 @@ System: `curl`, `wget`, `jq`, `git`, `gh` (authed as `stuckvgn`).
 /hunt-triage <handle>        # noise-filter scan output, propose findings
 /hunt-writeup <handle> <id>  # draft a report from a confirmed finding
 /hunt-status                 # overview
+
+# tracker-direct (outside the slash-command surface)
+./tracker.py prior-art <h>   # H1: offline corpus lookup; others: disclosure-URL hint
+./hunt.py <h> code_recon     # github-subdomains + optional trufflehog org scan
 ```
 
 Skills auto-load by description match — I don't need to Read them manually. They live in `.claude/skills/<name>/SKILL.md`.

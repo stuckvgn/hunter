@@ -1,0 +1,27 @@
+{
+  "handle": "kruidvat",
+  "platform": "intigriti",
+  "name": "Kruidvat",
+  "program_url": "https://www.intigriti.com/programs/aswatson/kruidvat/detail",
+  "max_bounty": 8500,
+  "min_bounty": 10,
+  "offers_bounty": true,
+  "phases": {
+    "scope": {
+      "at": "2026-04-22T15:17:51",
+      "output": "/home/linux/.cache/hunt/kruidvat/scope.json"
+    },
+    "policy": null,
+    "enum": null,
+    "live": null,
+    "crawl": null,
+    "scan": null,
+    "reported": null
+  },
+  "automation_allowed": null,
+  "policy_notes": "",
+  "findings": [],
+  "notes": [],
+  "created_at": "2026-04-22T15:17:49",
+  "updated_at": "2026-04-22T15:17:51"
+}

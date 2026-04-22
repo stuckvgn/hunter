@@ -1,0 +1,84 @@
+
+===================================================================================================================
+TOP 20 HEADLINE — paid (non-HackerOne), ranked by autonomy × payout × scope breadth
+===================================================================================================================
+SCORE  PLAT HANDLE                              PAYOUT  AUTO-FIT  SCOPE MIX (counts)                          W  NAME
+-------------------------------------------------------------------------------------------------------------------
+0.86  bugc t-mobile                          $133,700  auto-fit=0.90  auto= 72 mob=10 src= 0 hw= 0     T-Mobile
+0.82  inti kruidvat                            $8,500  auto-fit=0.94  auto= 45 mob= 4 src= 0 hw= 0  W  Kruidvat
+0.82  inti portofantwerp                       $4,500  auto-fit=1.00  auto= 54 mob= 0 src= 0 hw= 0  W  Port of Antwerp-Bruges
+0.82  inti iciparisxl                          $8,500  auto-fit=0.96  auto= 35 mob= 2 src= 0 hw= 0  W  ICI PARIS XL
+0.80  inti uzleuven                            $5,000  auto-fit=1.00  auto= 34 mob= 0 src= 0 hw= 0  W  UZ Leuven
+0.80  inti marionnaud                          $8,500  auto-fit=0.85  auto= 58 mob=16 src= 0 hw= 0  W  Marionnaud
+0.79  inti watsons                             $8,500  auto-fit=0.83  auto= 92 mob=30 src= 0 hw= 0  W  Watsons
+0.78  inti nmt                                 $2,500  auto-fit=1.00  auto= 40 mob= 0 src= 0 hw= 0  W  Axel Springer National Media & Tech
+0.77  inti superdrug                           $8,500  auto-fit=0.90  auto= 24 mob= 4 src= 0 hw= 0  W  Superdrug
+0.77  inti mobilevikings                       $5,000  auto-fit=1.00  auto= 18 mob= 0 src= 0 hw= 0  W  Mobile Vikings
+0.77  bugc sap-private-invite                 $20,000  auto-fit=1.00  auto= 24 mob= 0 src= 0 hw= 0     SAP Invitational Bug Bounty Program
+0.77  inti digitalocean                       $10,000  auto-fit=0.92  auto= 16 mob= 0 src= 0 hw= 0  W  DigitalOcean
+0.77  inti dropbox                            $15,000  auto-fit=0.83  auto= 20 mob= 5 src= 0 hw= 0  W  Dropbox Bug Bounty
+0.76  inti upholdcom                           $6,000  auto-fit=0.90  auto= 25 mob= 4 src= 0 hw= 0  W  Uphold
+0.76  yesw vfs-global-bug-bounty-progra        $1,500  auto-fit=1.00  auto= 42 mob= 0 src= 0 hw= 0  W  VFS Global Bug Bounty Program
+0.76  inti ninjakiwigames                      $4,125  auto-fit=1.00  auto= 17 mob= 0 src= 0 hw= 0  W  Ninja Kiwi Games Bug Bounty program
+0.76  bugc etoro-mbb-og                       $15,000  auto-fit=0.94  auto= 37 mob= 2 src= 0 hw= 0     eToro Managed Bug Bounty Engagement
+0.76  inti lansweeper1                         $5,000  auto-fit=1.00  auto= 14 mob= 0 src= 0 hw= 0  W  Lansweeper Bug Bounty Program
+0.76  inti personio                            $5,000  auto-fit=1.00  auto= 14 mob= 0 src= 0 hw= 0  W  Personio
+0.75  inti capitalcom                         $15,000  auto-fit=0.88  auto= 10 mob= 2 src= 0 hw= 0  W  Capital.com
+
+===================================================================================================================
+TOP 15 HACKERONE — paid H1 only (payout unknown in feed), ranked by autonomy + scope breadth
+===================================================================================================================
+SCORE  PLAT HANDLE                              PAYOUT  AUTO-FIT  SCOPE MIX (counts)                          W  NAME
+-------------------------------------------------------------------------------------------------------------------
+0.82  hack indrive                          paid ($?)  auto-fit=1.00  auto=118 mob= 0 src= 0 hw= 0  W  inDrive
+0.82  hack marriott                         paid ($?)  auto-fit=0.99  auto= 79 mob= 1 src= 0 hw= 0  W  Marriott Bug Bounty Program
+0.80  hack bookingcom                       paid ($?)  auto-fit=0.94  auto= 45 mob= 4 src= 0 hw= 0  W  Booking.com
+0.79  hack mercadolibre                     paid ($?)  auto-fit=0.89  auto= 56 mob= 8 src= 0 hw= 1  W  MercadoLibre
+0.79  hack flutteruki                       paid ($?)  auto-fit=0.93  auto= 38 mob= 4 src= 0 hw= 0  W  Flutter UK&I
+0.78  hack epicgames                        paid ($?)  auto-fit=0.87  auto= 69 mob= 3 src= 9 hw= 0  W  Epic Games
+0.78  hack 8x8-bounty                       paid ($?)  auto-fit=0.86  auto= 74 mob= 2 src= 2 hw= 0  W  8x8
+0.74  hack visa                             paid ($?)  auto-fit=1.00  auto=111 mob= 0 src= 0 hw= 0     Visa
+0.74  hack nba-public                       paid ($?)  auto-fit=0.99  auto=140 mob= 2 src= 0 hw= 0     NBA Public Bug Bounty
+0.74  hack forescout_technologies           paid ($?)  auto-fit=0.98  auto= 62 mob= 0 src= 0 hw= 1     ForeScout Technologies
+0.77  hack remitly                          paid ($?)  auto-fit=0.95  auto= 24 mob= 2 src= 0 hw= 0  W  Remitly
+0.74  hack hyatt                            paid ($?)  auto-fit=0.98  auto= 62 mob= 2 src= 0 hw= 0     Hyatt Hotels
+0.77  hack hilton                           paid ($?)  auto-fit=1.00  auto= 17 mob= 0 src= 0 hw= 0  W  Hilton
+0.77  hack pixiv                            paid ($?)  auto-fit=1.00  auto= 17 mob= 0 src= 0 hw= 0  W  pixiv
+0.76  hack reddit                           paid ($?)  auto-fit=0.93  auto= 24 mob= 0 src= 0 hw= 0  W  Reddit
+
+===================================================================================================================
+TOP 15 NICHE BETS — auto-fit ≥ 0.7, pays ≥ $1k, lower competition proxy, ≥ 3 auto targets
+===================================================================================================================
+SCORE  PLAT HANDLE                              PAYOUT  AUTO-FIT  SCOPE MIX (counts)                          W  NAME
+-------------------------------------------------------------------------------------------------------------------
+0.74  bugc pnimedia-bb                         $4,500  auto-fit=1.00  auto= 59 mob= 0 src= 0 hw= 0     PNI Media - Bug Bounty
+0.82  inti portofantwerp                       $4,500  auto-fit=1.00  auto= 54 mob= 0 src= 0 hw= 0  W  Port of Antwerp-Bruges
+0.74  bugc optus-mbb-og                        $5,000  auto-fit=0.99  auto=165 mob= 2 src= 0 hw= 0     Optus Managed Bug Bounty
+0.82  inti kruidvat                            $8,500  auto-fit=0.94  auto= 45 mob= 4 src= 0 hw= 0  W  Kruidvat
+0.73  bugc thetradedesk-mbb                    $5,000  auto-fit=1.00  auto= 38 mob= 0 src= 0 hw= 0     The Trade Desk
+0.76  bugc etoro-mbb-og                       $15,000  auto-fit=0.94  auto= 37 mob= 2 src= 0 hw= 0     eToro Managed Bug Bounty Engagement
+0.73  bugc monash-mbb                          $7,500  auto-fit=0.94  auto= 41 mob= 4 src= 0 hw= 0     Monash University Bug Bounty
+0.78  inti nmt                                 $2,500  auto-fit=1.00  auto= 40 mob= 0 src= 0 hw= 0  W  Axel Springer National Media & Tech
+0.80  inti uzleuven                            $5,000  auto-fit=1.00  auto= 34 mob= 0 src= 0 hw= 0  W  UZ Leuven
+0.82  inti iciparisxl                          $8,500  auto-fit=0.96  auto= 35 mob= 2 src= 0 hw= 0  W  ICI PARIS XL
+0.71  bugc opera                               $5,000  auto-fit=0.90  auto= 66 mob= 8 src= 0 hw= 0     Opera Public Bug Bounty
+0.77  bugc sap-private-invite                 $20,000  auto-fit=1.00  auto= 24 mob= 0 src= 0 hw= 0     SAP Invitational Bug Bounty Program
+0.76  yesw vfs-global-bug-bounty-progra        $1,500  auto-fit=1.00  auto= 42 mob= 0 src= 0 hw= 0  W  VFS Global Bug Bounty Program
+0.80  inti marionnaud                          $8,500  auto-fit=0.85  auto= 58 mob=16 src= 0 hw= 0  W  Marionnaud
+0.74  yesw fdj-united-online-betting-ga       $15,000  auto-fit=0.94  auto= 30 mob= 3 src= 0 hw= 0     FDJ United (Online Betting and Gaming) -
+
+===================================================================================================================
+LEGEND
+===================================================================================================================
+  auto-fit  = fraction of scope runnable by the agentic repo's recon tooling (nuclei/nmap/ffuf/sqlmap/etc.)
+  auto      = count of in-scope targets that are url/wildcard/api/website/web-app/ip/cidr/network
+  mob       = mobile targets (partial autonomy — needs emulator + dynamic analysis)
+  src       = source-code review scope (LLM-assisted, not scan-autonomous)
+  hw        = hardware/IoT/smart-contract scope (no automated tooling)
+  W         = program has wildcard scope (subdomain-enum opportunity)
+  payout    = upstream max bounty in USD; HackerOne records lack this field
+
+Total paid programs considered: 582
+  - with known payout (BC/INT/YWH): 348
+  - HackerOne (payout unknown):     234
+  - niche bets passing filter:      212

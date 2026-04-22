@@ -30,9 +30,18 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-BOUNTIES_CLI = Path.home() / "Desktop" / "bounties" / "bounties.py"
+BOUNTIES_CLI = Path(__file__).parent / "bounties.py"
+TRACKER_CLI = Path(__file__).parent / "tracker.py"
 HUNT_ROOT = Path(os.environ.get("HUNT_DIR", Path.home() / ".cache" / "hunt"))
 ACTIVE_PHASES = {"live", "crawl", "scan"}
+
+
+def tracker_advance(handle: str, phase: str, output: str | None) -> None:
+    """Best-effort tracker update; silent if the program isn't tracked yet."""
+    cmd = [str(TRACKER_CLI), "advance", handle, phase]
+    if output:
+        cmd += ["--output", output]
+    subprocess.run(cmd, capture_output=True, text=True, check=False)
 
 
 # ---------- workspace ----------
@@ -97,6 +106,7 @@ def phase_scope(handle: str, platform: str | None) -> None:
     log(handle, f"  in-scope: {len(buckets['urls'])} urls, {len(buckets['wildcards'])} wildcards, {len(buckets['other'])} other")
     log(handle, f"  out-of-scope: {len(scope['out_of_scope'])}")
     print(f"\nworkdir: {wd}")
+    tracker_advance(handle, "scope", str(wd / "scope.json"))
 
 
 def phase_enum(handle: str) -> None:
@@ -113,6 +123,7 @@ def phase_enum(handle: str) -> None:
         log(handle, f"subfinder exit code {r.returncode}")
     count = sum(1 for _ in out.open()) if out.exists() else 0
     log(handle, f"enum complete: {count} subdomains → {out}")
+    tracker_advance(handle, "enum", str(out))
 
 
 def phase_live(handle: str, concurrency: int, rate: int) -> None:
@@ -145,6 +156,7 @@ def phase_live(handle: str, concurrency: int, rate: int) -> None:
     subprocess.run(cmd, capture_output=False, text=True, check=False)
     count = sum(1 for _ in out.open()) if out.exists() else 0
     log(handle, f"live probe complete: {count} responsive hosts → {out}")
+    tracker_advance(handle, "live", str(out))
 
 
 def phase_crawl(handle: str, concurrency: int, rate: int) -> None:
@@ -178,6 +190,7 @@ def phase_crawl(handle: str, concurrency: int, rate: int) -> None:
     subprocess.run(cmd, capture_output=False, text=True, check=False)
     count = sum(1 for _ in out_file.open()) if out_file.exists() else 0
     log(handle, f"crawl complete: {count} URLs → {out_file}")
+    tracker_advance(handle, "crawl", str(out_file))
 
 
 def phase_scan(handle: str, concurrency: int, rate: int, severities: str) -> None:
@@ -211,6 +224,7 @@ def phase_scan(handle: str, concurrency: int, rate: int, severities: str) -> Non
     subprocess.run(cmd, capture_output=False, text=True, check=False)
     count = sum(1 for _ in out.open()) if out.exists() else 0
     log(handle, f"scan complete: {count} findings → {out}")
+    tracker_advance(handle, "scan", str(out))
 
 
 def phase_status(handle: str) -> None:

@@ -1,3 +1,8 @@
+---
+name: platform-intigriti
+description: Intigriti platform rules — scope page layout, typical automation stance, submission format, VRT-style handling, top triage picks. Load when working on an Intigriti program (handle.platform == intigriti in state).
+---
+
 # Intigriti — platform rules
 
 European-focused platform, the least saturated of the four in our data. 127 programs, 72 paying.
@@ -32,6 +37,6 @@ Intigriti uses its own web form, not an API. Drafts should live in the tracker, 
 - Bonus multipliers: some programs run "Hunting Parties" with 1.5–2x bounty windows. Watch the program page for announcements.
 - Triage response SLAs tend to be fast (1-3 days for initial response).
 
-## Top triage picks on Intigriti (from `triage_output.txt`)
+## Top triage picks on Intigriti
 
 kruidvat, iciparisxl, marionnaud, superdrug, watsons (the A.S. Watson retail cluster — likely shared infra, build recon once), uzleuven, portofantwerp, digitalocean, dropbox, capitalcom.

@@ -1,3 +1,8 @@
+---
+name: platform-bugcrowd
+description: Bugcrowd platform rules — MBB vs public vs invite, scope page layout, VRT severity framework, automation stance, top triage picks. Load when working on a Bugcrowd program (handle.platform == bugcrowd in state).
+---
+
 # Bugcrowd — platform rules
 
 Second-biggest platform in our dataset. 214 programs, 209 paying. More competition than Intigriti but higher ceilings.

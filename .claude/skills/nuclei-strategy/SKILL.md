@@ -1,4 +1,9 @@
-# nuclei_strategy
+---
+name: nuclei-strategy
+description: Progressive nuclei scan order (exposures → CVEs → misconfig → tech-specific → generic), flags I always/never pass, gf-pattern prefiltering. Use when planning or running hunt.py scan phase.
+---
+
+# nuclei-strategy
 
 Running nuclei against a live target set discovered by `hunt.py live`.
 
@@ -26,10 +31,24 @@ Never run the full template set at max concurrency on the first pass. Order:
    nuclei -l live_urls.txt -tags nginx -rl 30 -c 20 -jsonl -o tech_nginx.jsonl
    ```
 
-5. **Generic vulns** (SSRF/XSS/SQLI templates) — highest traffic, most false positives, run last.
+5. **Generic vulns** (SSRF/XSS/SQLI templates) — highest traffic, most false positives, run last. **Feed gf-filtered URL subsets** (see below) rather than the full live_urls list.
    ```bash
-   nuclei -l live_urls.txt -tags ssrf,xss,sqli -severity medium,high,critical -rl 20 -c 15 -jsonl -o generic.jsonl
+   gf ssrf  < all_urls.txt > ssrf_candidates.txt
+   nuclei -l ssrf_candidates.txt -tags ssrf -severity medium,high,critical -rl 20 -c 15 -jsonl -o ssrf.jsonl
    ```
+
+## gf prefilter — use this before step 5
+
+`gf` applies named regex patterns to an URL corpus (from katana crawl + gau archive + param_mine). It cuts the generic-vuln template volume dramatically by running each template class only against URLs likely to carry that vuln class:
+
+- `gf ssrf`  → URLs with redirect-shaped params (`url=`, `target=`, `dest=`, `next=`, `redirect=`)
+- `gf lfi`   → URLs with path-traversal-shaped params
+- `gf xss`   → URLs with reflected-param candidates
+- `gf ssti`  → URLs where template syntax could be evaluated
+- `gf idor`  → URLs with numeric ID params
+- `gf redirect` → redirect-chain candidates
+
+This converts "run xss templates against 5000 URLs" (noisy, slow) into "run xss templates against the 200 URLs that actually have reflected params."
 
 ## Flags I always pass
 
@@ -53,4 +72,4 @@ Run `jq '.info.name + " — " + .info.severity + " — " + .matched_at' nuclei.j
 2. Does the matched-at URL correspond to an in-scope target, or did we follow a redirect off-scope?
 3. Is the finding reproducible with curl? If not, the template matched noise.
 
-Only file real findings via `tracker.py finding <handle> add`.
+Only file real findings via `tracker.py finding <handle> add`. Load `triage-heuristics` skill before filing.

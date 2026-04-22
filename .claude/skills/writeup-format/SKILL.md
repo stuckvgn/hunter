@@ -1,4 +1,9 @@
-# writeup_format
+---
+name: writeup-format
+description: Required fields and order for a bug-bounty report (title, severity, summary, affected assets, reproduction, PoC, impact, remediation). Severity calibration table. Pre-submit checklist. Use when drafting a finding for Sam review.
+---
+
+# writeup-format
 
 Structure of a bug bounty report before I show it to Sam for sign-off.
 

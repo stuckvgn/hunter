@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -33,7 +34,7 @@ from typing import Iterable
 BOUNTIES_CLI = Path(__file__).parent / "bounties.py"
 TRACKER_CLI = Path(__file__).parent / "tracker.py"
 HUNT_ROOT = Path(os.environ.get("HUNT_DIR", Path.home() / ".cache" / "hunt"))
-ACTIVE_PHASES = {"live", "crawl", "scan"}
+ACTIVE_PHASES = {"live", "crawl", "js_mine", "param_mine", "scan"}
 
 
 def tracker_advance(handle: str, phase: str, output: str | None) -> None:
@@ -193,6 +194,177 @@ def phase_crawl(handle: str, concurrency: int, rate: int) -> None:
     tracker_advance(handle, "crawl", str(out_file))
 
 
+def phase_archive(handle: str, concurrency: int) -> None:
+    """gau — passive: queries Wayback/CommonCrawl/OTX/URLScan for historical URLs.
+    Strictly a read against third-party archives, no traffic to the target.
+    """
+    wd = workdir(handle)
+    wildcards = wd / "targets_wildcards.txt"
+    urls_file = wd / "targets_urls.txt"
+
+    # gau accepts root domains on stdin. Feed both wildcards and host-extracted
+    # URL targets so archives are queried for every root in scope.
+    domains: set[str] = set()
+    if wildcards.exists():
+        domains.update(l.strip() for l in wildcards.read_text().splitlines() if l.strip())
+    if urls_file.exists():
+        for line in urls_file.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            from urllib.parse import urlparse
+            host = urlparse(line).netloc or line
+            if host:
+                domains.add(host)
+    if not domains:
+        sys.exit("no domains to archive-mine — run `scope` first")
+
+    feed = wd / "archive_input.txt"
+    feed.write_text("\n".join(sorted(domains)) + "\n")
+    out = wd / "archive_urls.txt"
+
+    cmd = ["gau", "--subs", "--threads", str(concurrency), "--o", str(out)]
+    log(handle, f"running: cat {feed} | {' '.join(cmd)}")
+    with feed.open() as fh:
+        subprocess.run(cmd, stdin=fh, capture_output=False, text=True, check=False)
+    count = sum(1 for _ in out.open()) if out.exists() else 0
+    log(handle, f"archive complete: {count} historical URLs → {out}")
+    tracker_advance(handle, "archive", str(out))
+
+
+# Regex-based JS miner. AST-based extraction via jsluice needs a C toolchain
+# we don't have; these patterns cover ~80% of jsluice's value for bounty work
+# (hardcoded secrets in unminified customer JS + endpoint strings).
+_JS_SECRET_PATTERNS = {
+    "aws_access_key":     r"AKIA[0-9A-Z]{16}",
+    "google_api_key":     r"AIza[0-9A-Za-z\-_]{35}",
+    "github_token":       r"ghp_[0-9a-zA-Z]{36}",
+    "github_oauth":       r"gho_[0-9a-zA-Z]{36}",
+    "stripe_live_sk":     r"sk_live_[0-9a-zA-Z]{24,}",
+    "stripe_live_pk":     r"pk_live_[0-9a-zA-Z]{24,}",
+    "slack_token":        r"xox[baprs]-[0-9a-zA-Z]{10,48}",
+    "jwt":                r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]*",
+    "firebase_url":       r"https://[\w\-]+\.firebaseio\.com",
+    "firebase_apikey":    r"firebaseConfig[^}]*apiKey\s*:\s*[\"'][^\"']+[\"']",
+    "private_key_header": r"-----BEGIN (?:RSA |EC |DSA |ED25519 )?PRIVATE KEY-----",
+    "mailgun_key":        r"key-[0-9a-f]{32}",
+    "twilio_sid":         r"AC[0-9a-fA-F]{32}",
+}
+_JS_URL_RE  = re.compile(r'https?://[^\s\'"<>`]+', re.I)
+_JS_PATH_RE = re.compile(r'[\'"](/(?:api|v\d+|internal|admin|debug|graphql|oauth|auth|rest)/[^\'"<>\s`]*)[\'"]', re.I)
+
+
+def phase_js_mine(handle: str, concurrency: int) -> None:
+    """Extract JS URLs from live corpus, fetch each, regex-scan for secrets + API paths.
+    ACTIVE: GETs each JS file from the target.
+    """
+    wd = workdir(handle)
+    live = wd / "live_urls.txt"
+    if not live.exists():
+        # Derive from live.jsonl if it exists
+        live_jsonl = wd / "live.jsonl"
+        if live_jsonl.exists():
+            with live_jsonl.open() as fh, live.open("w") as out:
+                for line in fh:
+                    try:
+                        url = (json.loads(line).get("url") or "").strip()
+                        if url:
+                            out.write(url + "\n")
+                    except json.JSONDecodeError:
+                        continue
+        else:
+            sys.exit("no live hosts — run `live` first")
+
+    js_urls_file = wd / "js_urls.txt"
+    log(handle, f"running (ACTIVE): subjs < {live}")
+    with live.open() as fh:
+        r = subprocess.run(["subjs"], stdin=fh, capture_output=True, text=True, check=False)
+    js_urls_file.write_text(r.stdout)
+    js_urls = [u.strip() for u in r.stdout.splitlines() if u.strip()]
+    log(handle, f"  {len(js_urls)} JS URLs discovered")
+
+    if not js_urls:
+        tracker_advance(handle, "js_mine", str(js_urls_file))
+        return
+
+    # Fetch each JS file and regex-scan. Cap at the first 200 to keep a single
+    # run bounded; if more exist, log a warning.
+    import urllib.request
+    out_file = wd / "js_findings.jsonl"
+    capped = js_urls[:200]
+    if len(js_urls) > 200:
+        log(handle, f"  capping JS fetch at 200 (have {len(js_urls)})")
+
+    findings = 0
+    with out_file.open("w") as out:
+        for i, u in enumerate(capped, 1):
+            try:
+                req = urllib.request.Request(u, headers={"User-Agent": "hunter-js-miner"})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    body = resp.read().decode("utf-8", errors="ignore")
+            except Exception as e:
+                continue
+
+            for kind, pat in _JS_SECRET_PATTERNS.items():
+                for m in re.finditer(pat, body):
+                    out.write(json.dumps({
+                        "type": "secret",
+                        "kind": kind,
+                        "js_url": u,
+                        "match": m.group(0)[:300],
+                    }) + "\n")
+                    findings += 1
+            for m in _JS_URL_RE.finditer(body):
+                out.write(json.dumps({"type": "absolute_url", "js_url": u, "url": m.group(0)[:500]}) + "\n")
+            for m in _JS_PATH_RE.finditer(body):
+                out.write(json.dumps({"type": "api_path", "js_url": u, "path": m.group(1)[:500]}) + "\n")
+
+    log(handle, f"js_mine complete: {findings} secret-like hits in {len(capped)} JS files → {out_file}")
+    tracker_advance(handle, "js_mine", str(out_file))
+
+
+def phase_param_mine(handle: str, concurrency: int, rate: int, sample: int) -> None:
+    """Arjun param discovery on a sampled set of live URLs. ACTIVE: diffing probes."""
+    wd = workdir(handle)
+    live_urls = wd / "live_urls.txt"
+    if not live_urls.exists():
+        sys.exit("no live_urls.txt — run `live` first")
+
+    # Dedup by host+path so we don't repeatedly mine the same endpoint.
+    from urllib.parse import urlparse, urlunparse
+    seen: set[str] = set()
+    candidates: list[str] = []
+    for u in live_urls.read_text().splitlines():
+        u = u.strip()
+        if not u:
+            continue
+        p = urlparse(u)
+        key = (p.netloc, p.path)
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(u)
+
+    if sample and len(candidates) > sample:
+        log(handle, f"sampling {sample} of {len(candidates)} unique endpoints for param mining")
+        candidates = candidates[:sample]
+
+    feed = wd / "param_mine_input.txt"
+    feed.write_text("\n".join(candidates) + "\n")
+    out = wd / "hidden_params.json"
+    cmd = ["arjun", "-i", str(feed), "-oJ", str(out), "-t", str(concurrency), "--rate-limit", str(rate)]
+    log(handle, f"running (ACTIVE): {' '.join(cmd)}")
+    subprocess.run(cmd, capture_output=False, text=True, check=False)
+    if out.exists():
+        try:
+            data = json.loads(out.read_text())
+            total = sum(len(v.get("params", [])) for v in data.values()) if isinstance(data, dict) else 0
+            log(handle, f"param_mine complete: {total} hidden parameters across {len(candidates)} endpoints → {out}")
+        except (json.JSONDecodeError, AttributeError):
+            log(handle, f"param_mine complete (output at {out}, format unexpected)")
+    tracker_advance(handle, "param_mine", str(out))
+
+
 def phase_scan(handle: str, concurrency: int, rate: int, severities: str) -> None:
     """nuclei template scan — ACTIVE: sends vuln-check payloads to live hosts."""
     wd = workdir(handle)
@@ -232,11 +404,14 @@ def phase_status(handle: str) -> None:
     if not wd.exists():
         sys.exit(f"no workdir for {handle} — nothing run yet")
     files = {
-        "scope.json": "scope",
-        "subs.txt": "enum (subdomains)",
-        "live.jsonl": "live probes",
-        "katana.jsonl": "crawl",
-        "nuclei.jsonl": "scan findings",
+        "scope.json":        "scope",
+        "subs.txt":          "enum (subdomains)",
+        "archive_urls.txt":  "archive (gau)",
+        "live.jsonl":        "live probes",
+        "katana.jsonl":      "crawl",
+        "js_findings.jsonl": "js_mine",
+        "hidden_params.json":"param_mine",
+        "nuclei.jsonl":      "scan findings",
     }
     print(f"\nworkdir: {wd}\n")
     for name, label in files.items():
@@ -275,13 +450,14 @@ def main() -> None:
         description="Per-target recon harness — each phase is an explicit step.",
     )
     ap.add_argument("handle", help="program handle (e.g. shopify, kruidvat)")
-    ap.add_argument("phase", choices=["scope", "enum", "live", "crawl", "scan", "status", "clear"])
+    ap.add_argument("phase", choices=["scope", "enum", "archive", "live", "crawl", "js_mine", "param_mine", "scan", "status", "clear"])
     ap.add_argument("--platform", choices=("hackerone", "bugcrowd", "intigriti", "yeswehack"),
                     help="disambiguate if handle collides")
     ap.add_argument("-c", "--concurrency", type=int, default=25, help="worker threads (active phases)")
     ap.add_argument("--rl", type=int, default=50, help="requests per second rate limit (active phases)")
     ap.add_argument("--severity", default="low,medium,high,critical",
                     help="nuclei severities, comma-separated")
+    ap.add_argument("--sample", type=int, default=50, help="param-mine: cap number of unique endpoints probed")
     args = ap.parse_args()
 
     if args.phase in ACTIVE_PHASES:
@@ -289,13 +465,16 @@ def main() -> None:
         print("    Confirm the target's program policy allows automated scanning before proceeding.\n")
 
     phases = {
-        "scope":  lambda: phase_scope(args.handle, args.platform),
-        "enum":   lambda: phase_enum(args.handle),
-        "live":   lambda: phase_live(args.handle, args.concurrency, args.rl),
-        "crawl":  lambda: phase_crawl(args.handle, args.concurrency, args.rl),
-        "scan":   lambda: phase_scan(args.handle, args.concurrency, args.rl, args.severity),
-        "status": lambda: phase_status(args.handle),
-        "clear":  lambda: phase_clear(args.handle),
+        "scope":      lambda: phase_scope(args.handle, args.platform),
+        "enum":       lambda: phase_enum(args.handle),
+        "archive":    lambda: phase_archive(args.handle, args.concurrency),
+        "live":       lambda: phase_live(args.handle, args.concurrency, args.rl),
+        "crawl":      lambda: phase_crawl(args.handle, args.concurrency, args.rl),
+        "js_mine":    lambda: phase_js_mine(args.handle, args.concurrency),
+        "param_mine": lambda: phase_param_mine(args.handle, args.concurrency, args.rl, args.sample),
+        "scan":       lambda: phase_scan(args.handle, args.concurrency, args.rl, args.severity),
+        "status":     lambda: phase_status(args.handle),
+        "clear":      lambda: phase_clear(args.handle),
     }
     phases[args.phase]()
 

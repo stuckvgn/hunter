@@ -1,4 +1,9 @@
-# triage_heuristics
+---
+name: triage-heuristics
+description: Fast-reject and fast-accept rules for raw nuclei findings, verify-before-file sequence, severity mapping from nuclei tags to real report severity. Use after hunt.py scan completes, before tracker.py finding add.
+---
+
+# triage-heuristics
 
 Distinguishing real findings from scanner noise before filing a finding.
 
@@ -22,7 +27,7 @@ For everything in between, do this sequence:
 
 1. **Re-request with curl** using the exact URL + method + headers the template used. Confirm the response body still contains the matched evidence.
 2. **Check scope**. Open `state/<handle>.json` and verify the matched host/path is in `in_scope`, not blocked by an out-of-scope pattern. A surprising amount of nuclei output hits subdomains that have since moved out of scope.
-3. **Check for duplicates** in the program's disclosure page (use WebFetch). Many top findings on enterprise programs are already known issues.
+3. **Check for duplicates** in the program's disclosure page (use WebFetch). Load `prior-art` skill first. Many top findings on enterprise programs are already known issues.
 4. **Reproduce with a different user agent**. Scanners get blocked; real browsers might not. If only the scanner-UA hits, the "finding" is often a honeypot response.
 5. **Only then** call `tracker.py finding <handle> add`.
 

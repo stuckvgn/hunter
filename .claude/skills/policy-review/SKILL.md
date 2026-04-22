@@ -1,4 +1,9 @@
-# policy_review
+---
+name: policy-review
+description: How to read a bounty program's policy page and record automation rules before any active scan. Use when tracker.py next says review policy, or when transitioning from scope to enum/live on a target.
+---
+
+# policy-review
 
 How to read a program's policy page before running active scans.
 

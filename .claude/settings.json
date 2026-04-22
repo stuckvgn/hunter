@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(~/Desktop/hunter/bounties.py:*)",
+      "Bash(~/Desktop/hunter/triage.py:*)",
+      "Bash(~/Desktop/hunter/tracker.py:*)",
+      "Bash(~/Desktop/hunter/hunt.py:*)",
+      "Bash(subfinder:*)",
+      "Bash(httpx:*)",
+      "Bash(dnsx:*)",
+      "Bash(katana:*)",
+      "Bash(nuclei:*)",
+      "Bash(ffuf:*)",
+      "Bash(gau:*)",
+      "Bash(jsluice:*)",
+      "Bash(subjs:*)",
+      "Bash(gf:*)",
+      "Bash(arjun:*)",
+      "Bash(trufflehog:*)",
+      "Bash(github-subdomains:*)",
+      "Bash(jq:*)",
+      "Bash(curl:*)",
+      "Read(~/Desktop/hunter/**)",
+      "Read(~/.cache/hunt/**)",
+      "Write(~/Desktop/hunter/findings/**)",
+      "Edit(~/Desktop/hunter/state/**)"
+    ]
+  }
+}

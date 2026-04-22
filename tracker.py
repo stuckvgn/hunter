@@ -38,9 +38,9 @@ BOUNTIES_CLI = HERE / "bounties.py"
 sys.path.insert(0, str(HERE))  # allow importing bounties / triage as modules
 
 # Phase ordering — advance() fills them in sequence.
-PHASES = ["scope", "policy", "enum", "live", "crawl", "scan", "reported"]
-PASSIVE_PHASES = {"scope", "policy", "enum"}
-ACTIVE_PHASES = {"live", "crawl", "scan"}
+PHASES = ["scope", "policy", "enum", "archive", "live", "crawl", "js_mine", "param_mine", "scan", "reported"]
+PASSIVE_PHASES = {"scope", "policy", "enum", "archive"}
+ACTIVE_PHASES = {"live", "crawl", "js_mine", "param_mine", "scan"}
 
 
 # ---------- io ----------
@@ -67,7 +67,13 @@ def save(state: dict) -> None:
 def all_states() -> list[dict]:
     if not STATE_DIR.exists():
         return []
-    return [json.loads(p.read_text()) for p in sorted(STATE_DIR.glob("*.json"))]
+    # Files starting with `_` are shared artifacts (_catalog, _triage),
+    # not per-program state. Skip them.
+    return [
+        json.loads(p.read_text())
+        for p in sorted(STATE_DIR.glob("*.json"))
+        if not p.name.startswith("_")
+    ]
 
 
 # ---------- derived status ----------
